@@ -2,6 +2,7 @@ import pygame
 import random
 from game.beat import Note, LANES, LANE_KEYS, LANE_LABELS, LANE_COLORS
 
+
 WIDTH, HEIGHT = 480, 640
 FPS = 60
 HIT_Y = HEIGHT - 80
@@ -9,10 +10,13 @@ HIT_WINDOW = 30
 BG = (15, 10, 25)
 LANE_W = WIDTH // LANES
 
+
 class GameEngine:
     def __init__(self):
         pygame.init()
         pygame.mixer.init()
+        self.hit_sound = pygame.mixer.Sound("assets/hit.wav")
+
         self.screen = pygame.display.set_mode((WIDTH, HEIGHT))
         pygame.display.set_caption("Rhythm Tap")
         self.clock = pygame.time.Clock()
@@ -39,7 +43,9 @@ class GameEngine:
 
     def handle_events(self):
         for event in pygame.event.get():
-            if event.type == pygame.QUIT: return False
+            if event.type == pygame.QUIT:
+                return False
+
             if event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_r:
                     self.reset()
@@ -47,116 +53,240 @@ class GameEngine:
                     for i, key in enumerate(LANE_KEYS):
                         if event.key == key:
                             self.process_tap(i)
+
         return True
 
     def process_tap(self, lane):
         # Find closest note in this lane near hit zone
         best = None
         best_dist = 9999
+
         for note in self.notes:
             if note.lane == lane and not note.hit and not note.missed:
-                dist = abs(note.y + Note.HEIGHT//2 - HIT_Y)
+                dist = abs(note.y + Note.HEIGHT // 2 - HIT_Y)
+
                 if dist < best_dist:
                     best_dist = dist
                     best = note
+
         lane_x = lane * LANE_W + LANE_W // 2
+
         if best and best_dist <= HIT_WINDOW:
             best.hit = True
+
             if best_dist < 8:
                 grade, pts = "PERFECT", 300
                 col = (255, 220, 0)
+
             elif best_dist < 18:
                 grade, pts = "GREAT", 200
                 col = (100, 220, 100)
+
             else:
                 grade, pts = "OK", 100
                 col = (180, 180, 255)
+
+            # Play sound for PERFECT, GREAT, and OK
+            self.hit_sound.play()
+
             self.combo += 1
             self.max_combo = max(self.max_combo, self.combo)
             self.score += pts * max(1, self.combo // 5)
-            self.feedback.append([grade, col, 40, lane_x, HIT_Y - 30])
+            self.feedback.append(
+                [grade, col, 40, lane_x, HIT_Y - 30]
+            )
+
         else:
             self.combo = 0
-            self.feedback.append(["MISS", (220,60,60), 40, lane_x, HIT_Y - 30])
+            self.feedback.append(
+                ["MISS", (220, 60, 60), 40, lane_x, HIT_Y - 30]
+            )
 
     def update(self):
-        if self.game_over: return
+        if self.game_over:
+            return
+
         self.frame += 1
         self.spawn_timer += 1
+
         if self.spawn_timer >= self.spawn_interval:
             self.spawn_note()
             self.spawn_timer = 0
+
             if self.frame % 600 == 0:
                 self.speed = min(10, self.speed + 0.5)
                 self.spawn_interval = max(25, self.spawn_interval - 2)
 
         for note in self.notes:
             note.update()
-            if not note.hit and not note.missed and note.y > HIT_Y + HIT_WINDOW + Note.HEIGHT:
+
+            if (
+                not note.hit
+                and not note.missed
+                and note.y > HIT_Y + HIT_WINDOW + Note.HEIGHT
+            ):
                 note.missed = True
                 self.misses += 1
                 self.combo = 0
 
-        self.notes = [n for n in self.notes if not (n.hit or n.missed and n.y > HEIGHT + 10)]
-        self.feedback = [[t,c,ttl-1,x,y] for t,c,ttl,x,y in self.feedback if ttl > 1]
+        self.notes = [
+            n for n in self.notes
+            if not (n.hit or n.missed and n.y > HEIGHT + 10)
+        ]
+
+        self.feedback = [
+            [t, c, ttl - 1, x, y]
+            for t, c, ttl, x, y in self.feedback
+            if ttl > 1
+        ]
 
         if self.misses >= 15:
             self.game_over = True
 
     def draw(self):
         self.screen.fill(BG)
+
         # Lane dividers
         for i in range(LANES + 1):
-            pygame.draw.line(self.screen, (40,40,60), (i*LANE_W,0), (i*LANE_W,HEIGHT), 1)
+            pygame.draw.line(
+                self.screen,
+                (40, 40, 60),
+                (i * LANE_W, 0),
+                (i * LANE_W, HEIGHT),
+                1
+            )
 
         # Hit line
-        pygame.draw.line(self.screen, (80,80,100), (0,HIT_Y), (WIDTH,HIT_Y), 2)
+        pygame.draw.line(
+            self.screen,
+            (80, 80, 100),
+            (0, HIT_Y),
+            (WIDTH, HIT_Y),
+            2
+        )
+
         for i in range(LANES):
-            lx = i*LANE_W + LANE_W//2
-            pygame.draw.rect(self.screen, LANE_COLORS[i],
-                pygame.Rect(lx - Note.WIDTH//2, HIT_Y - 12, Note.WIDTH, 24), border_radius=6)
-            lbl = self.font.render(LANE_LABELS[i], True, (20,20,20))
-            self.screen.blit(lbl, (lx - lbl.get_width()//2, HIT_Y - 10))
+            lx = i * LANE_W + LANE_W // 2
+
+            pygame.draw.rect(
+                self.screen,
+                LANE_COLORS[i],
+                pygame.Rect(
+                    lx - Note.WIDTH // 2,
+                    HIT_Y - 12,
+                    Note.WIDTH,
+                    24
+                ),
+                border_radius=6
+            )
+
+            lbl = self.font.render(
+                LANE_LABELS[i],
+                True,
+                (20, 20, 20)
+            )
+
+            self.screen.blit(
+                lbl,
+                (lx - lbl.get_width() // 2, HIT_Y - 10)
+            )
 
         # Notes
         for note in self.notes:
-            if note.hit: continue
+            if note.hit:
+                continue
+
             lx = note.lane * LANE_W + LANE_W // 2
             rect = note.get_rect(lx)
-            pygame.draw.rect(self.screen, LANE_COLORS[note.lane], rect, border_radius=5)
+
+            pygame.draw.rect(
+                self.screen,
+                LANE_COLORS[note.lane],
+                rect,
+                border_radius=5
+            )
 
         # Feedback
         for text, color, ttl, x, y in self.feedback:
             surf = self.font.render(text, True, color)
             alpha = min(255, ttl * 7)
             surf.set_alpha(alpha)
-            self.screen.blit(surf, (x - surf.get_width()//2, y))
+
+            self.screen.blit(
+                surf,
+                (x - surf.get_width() // 2, y)
+            )
 
         # HUD
-        sc = self.font.render(f"Score: {self.score}", True, (220,220,220))
-        co = self.font.render(f"Combo: {self.combo}x", True, (255,220,80))
-        mi = self.font.render(f"Misses: {self.misses}/15", True, (220,100,100))
+        sc = self.font.render(
+            f"Score: {self.score}",
+            True,
+            (220, 220, 220)
+        )
+
+        co = self.font.render(
+            f"Combo: {self.combo}x",
+            True,
+            (255, 220, 80)
+        )
+
+        mi = self.font.render(
+            f"Misses: {self.misses}/15",
+            True,
+            (220, 100, 100)
+        )
+
         self.screen.blit(sc, (10, 10))
         self.screen.blit(co, (10, 40))
         self.screen.blit(mi, (WIDTH - 170, 10))
 
         if self.game_over:
-            ov = pygame.Surface((WIDTH,HEIGHT), pygame.SRCALPHA)
-            ov.fill((0,0,0,160))
-            self.screen.blit(ov,(0,0))
-            msg = self.big_font.render("GAME OVER", True, (220,60,60))
-            sc_msg = self.font.render(f"Final Score: {self.score}  Max Combo: {self.max_combo}x", True, (200,200,200))
-            restart = self.font.render("Press R to Restart", True, (160,160,160))
-            self.screen.blit(msg, (WIDTH//2-msg.get_width()//2, HEIGHT//2-70))
-            self.screen.blit(sc_msg, (WIDTH//2-sc_msg.get_width()//2, HEIGHT//2))
-            self.screen.blit(restart, (WIDTH//2-restart.get_width()//2, HEIGHT//2+50))
+            ov = pygame.Surface((WIDTH, HEIGHT), pygame.SRCALPHA)
+            ov.fill((0, 0, 0, 160))
+            self.screen.blit(ov, (0, 0))
+
+            msg = self.big_font.render(
+                "GAME OVER",
+                True,
+                (220, 60, 60)
+            )
+
+            sc_msg = self.font.render(
+                f"Final Score: {self.score}  Max Combo: {self.max_combo}x",
+                True,
+                (200, 200, 200)
+            )
+
+            restart = self.font.render(
+                "Press R to Restart",
+                True,
+                (160, 160, 160)
+            )
+
+            self.screen.blit(
+                msg,
+                (WIDTH // 2 - msg.get_width() // 2, HEIGHT // 2 - 70)
+            )
+
+            self.screen.blit(
+                sc_msg,
+                (WIDTH // 2 - sc_msg.get_width() // 2, HEIGHT // 2)
+            )
+
+            self.screen.blit(
+                restart,
+                (WIDTH // 2 - restart.get_width() // 2, HEIGHT // 2 + 50)
+            )
+
         pygame.display.flip()
 
     def run(self):
         running = True
+
         while running:
             running = self.handle_events()
             self.update()
             self.draw()
             self.clock.tick(FPS)
+
         pygame.quit()
