@@ -5,6 +5,8 @@ from game.beat import Note, LANES, LANE_KEYS, LANE_LABELS, LANE_COLORS
 
 WIDTH, HEIGHT = 480, 640
 FPS = 60
+BPM = 120
+BEAT_DURATION = 60 / BPM
 HIT_Y = HEIGHT - 80
 HIT_WINDOW = 30
 BG = (15, 10, 25)
@@ -30,8 +32,8 @@ class GameEngine:
         self.combo = 0
         self.max_combo = 0
         self.misses = 0
-        self.spawn_timer = 0
-        self.spawn_interval = 45
+        self.spawn_elapsed = 0.0
+        self.last_update_time = pygame.time.get_ticks()
         self.speed = 5
         self.frame = 0
         self.feedback = []  # (text, color, ttl, x, y)
@@ -253,25 +255,24 @@ class GameEngine:
             return
 
         self.frame += 1
-        self.spawn_timer += 1
+
+        current_time = pygame.time.get_ticks()
+        elapsed_seconds = (current_time - self.last_update_time) / 1000
+        self.last_update_time = current_time
+        self.spawn_elapsed += elapsed_seconds
 
         # -----------------------------------------
         # Spawn notes
         # -----------------------------------------
 
-        if self.spawn_timer >= self.spawn_interval:
+        while self.spawn_elapsed >= BEAT_DURATION:
             self.spawn_note()
-            self.spawn_timer = 0
+            self.spawn_elapsed -= BEAT_DURATION
 
             if self.frame % 600 == 0:
                 self.speed = min(
                     10,
                     self.speed + 0.5
-                )
-
-                self.spawn_interval = max(
-                    25,
-                    self.spawn_interval - 2
                 )
 
         # -----------------------------------------
