@@ -32,6 +32,10 @@ class GameEngine:
         self.combo = 0
         self.max_combo = 0
         self.misses = 0
+        self.perfect_count = 0
+        self.great_count = 0
+        self.ok_count = 0
+        self.miss_count = 0
         self.spawn_elapsed = 0.0
         self.last_update_time = pygame.time.get_ticks()
         self.speed = 5
@@ -41,6 +45,34 @@ class GameEngine:
 
         # Task 2: currently active hold note
         self.active_hold = None
+
+    def record_grade(self, grade):
+        if grade == "PERFECT":
+            self.perfect_count += 1
+        elif grade == "GREAT":
+            self.great_count += 1
+        elif grade == "OK":
+            self.ok_count += 1
+        elif grade == "MISS":
+            self.miss_count += 1
+
+    def get_accuracy(self):
+        total_attempts = (
+            self.perfect_count
+            + self.great_count
+            + self.ok_count
+            + self.miss_count
+        )
+
+        if total_attempts == 0:
+            return 0.0
+
+        weighted_hits = (
+            self.perfect_count
+            + self.great_count * 0.8
+            + self.ok_count * 0.5
+        )
+        return weighted_hits / total_attempts * 100
 
     def spawn_note(self):
         lane = random.randint(0, LANES - 1)
@@ -98,6 +130,7 @@ class GameEngine:
         # No note close enough
         if best is None or best_dist > HIT_WINDOW:
             self.combo = 0
+            self.record_grade("MISS")
 
             self.feedback.append(
                 [
@@ -161,6 +194,7 @@ class GameEngine:
 
         # Task 1 sound
         self.hit_sound.play()
+        self.record_grade(grade)
 
         self.combo += 1
         self.max_combo = max(self.max_combo, self.combo)
@@ -213,6 +247,7 @@ class GameEngine:
 
             self.score += 300
 
+            self.record_grade("PERFECT")
             self.hit_sound.play()
 
             self.feedback.append(
@@ -237,6 +272,7 @@ class GameEngine:
 
             self.combo = 0
             self.misses += 1
+            self.record_grade("MISS")
 
             self.feedback.append(
                 [
@@ -325,6 +361,7 @@ class GameEngine:
                 note.missed = True
                 self.misses += 1
                 self.combo = 0
+                self.record_grade("MISS")
 
                 lane_x = (
                     note.lane * LANE_W
@@ -532,17 +569,39 @@ class GameEngine:
 
             self.screen.blit(
                 msg,
-                (WIDTH // 2 - msg.get_width() // 2, HEIGHT // 2 - 70)
+                (WIDTH // 2 - msg.get_width() // 2, HEIGHT // 2 - 170)
             )
+
+            summary_lines = [
+                f"PERFECT: {self.perfect_count}",
+                f"GREAT: {self.great_count}",
+                f"OK: {self.ok_count}",
+                f"MISS: {self.miss_count}",
+                f"Accuracy: {self.get_accuracy():.1f}%",
+            ]
+
+            for index, line in enumerate(summary_lines):
+                summary = self.font.render(
+                    line,
+                    True,
+                    (200, 200, 200)
+                )
+                self.screen.blit(
+                    summary,
+                    (
+                        WIDTH // 2 - summary.get_width() // 2,
+                        HEIGHT // 2 - 110 + index * 30
+                    )
+                )
 
             self.screen.blit(
                 sc_msg,
-                (WIDTH // 2 - sc_msg.get_width() // 2, HEIGHT // 2)
+                (WIDTH // 2 - sc_msg.get_width() // 2, HEIGHT // 2 + 70)
             )
 
             self.screen.blit(
                 restart,
-                (WIDTH // 2 - restart.get_width() // 2, HEIGHT // 2 + 50)
+                (WIDTH // 2 - restart.get_width() // 2, HEIGHT // 2 + 120)
             )
 
         pygame.display.flip()
